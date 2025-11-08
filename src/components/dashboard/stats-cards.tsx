@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +50,7 @@ export function StatsCards() {
     }).length || 0;
 
     const projectsDueSoon = projects?.filter(p => {
-      if (p.status.label === 'Concluído' || !p.deadline) return false;
+      if (!p.status || p.status.label === 'Concluído' || !p.deadline) return false;
       const projectDate = getDateFromProp(p.deadline);
        if (!projectDate) return false;
       return isAfter(projectDate, today) && isBefore(projectDate, nextWeek);
