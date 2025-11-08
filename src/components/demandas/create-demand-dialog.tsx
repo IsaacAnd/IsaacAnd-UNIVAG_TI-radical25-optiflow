@@ -46,6 +46,7 @@ import { collection } from 'firebase/firestore';
 const demandSchema = z.object({
   title: z.string().min(1, 'O título é obrigatório.'),
   projectId: z.string().min(1, 'É obrigatório vincular a um projeto.'),
+  category: z.string().min(1, 'A categoria é obrigatória.'),
   dueDate: z.date({ required_error: 'A data do prazo é obrigatória.' }),
   description: z.string().optional(),
 });
@@ -54,9 +55,10 @@ type DemandFormValues = z.infer<typeof demandSchema>;
 
 interface CreateDemandDialogProps {
     onAddDemand: (data: DemandFormValues) => void;
+    categorias: string[];
 }
 
-export function CreateDemandDialog({ onAddDemand }: CreateDemandDialogProps) {
+export function CreateDemandDialog({ onAddDemand, categorias }: CreateDemandDialogProps) {
   const [open, setOpen] = React.useState(false);
   const firestore = useFirestore();
 
@@ -69,6 +71,7 @@ export function CreateDemandDialog({ onAddDemand }: CreateDemandDialogProps) {
     defaultValues: {
       title: '',
       projectId: '',
+      category: '',
     },
   });
 
@@ -134,6 +137,30 @@ export function CreateDemandDialog({ onAddDemand }: CreateDemandDialogProps) {
                           </SelectItem>
                         ))
                       )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem className="grid grid-cols-4 items-center gap-4">
+                  <FormLabel className="text-right text-base">Categoria</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl className="col-span-3">
+                      <SelectTrigger className="text-base">
+                        <SelectValue placeholder="Selecione uma categoria" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                        {categorias.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />

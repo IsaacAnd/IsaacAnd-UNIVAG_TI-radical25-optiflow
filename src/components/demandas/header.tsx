@@ -132,7 +132,7 @@ export function DemandasHeader({
             >Atrasados</DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <CreateDemandDialog onAddDemand={onAddDemand} />
+        <CreateDemandDialog onAddDemand={onAddDemand} categorias={categorias} />
       </div>
     </header>
   );

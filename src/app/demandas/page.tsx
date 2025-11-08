@@ -37,23 +37,36 @@ export default function DemandasPage() {
   const [prazo, setPrazo] = React.useState<string[]>([]);
 
 
-  const getProjectPrefix = (projectId: string) => {
-    const project = projects?.find(p => p.id === projectId);
-    if (!project) return 'GEN';
-    return project.title.substring(0, 3).toUpperCase();
+  const getProjectPrefix = (projectTitle: string) => {
+    if (!projectTitle) return 'GEN';
+    return projectTitle.substring(0, 3).toUpperCase();
   }
 
-  const handleAddDemand = async (newDemandData: Omit<DemandProps, 'id' | 'isOverdue' | 'assignees' | 'tags' | 'date'> & { dueDate: Date; projectId: string }) => {
-    const prefix = getProjectPrefix(newDemandData.projectId);
+  const handleAddDemand = async (newDemandData: Omit<DemandProps, 'id' | 'isOverdue' | 'assignees' | 'tags' | 'date'> & { dueDate: Date; projectId: string; category: string; }) => {
+    
+    const projectDocRef = doc(firestore, 'projects', newDemandData.projectId);
+    const projectDoc = await getDoc(projectDocRef);
+    if (!projectDoc.exists()) {
+        console.error("Project not found!");
+        return;
+    }
+    const projectData = projectDoc.data() as Project;
+    const prefix = getProjectPrefix(projectData.title);
     
     const q = query(demandsRef, where('id', '>=', prefix), where('id', '<', prefix + 'z'));
     const querySnapshot = await getDocs(q);
     const newIdNumber = querySnapshot.size + 1;
     const newDemandId = `${prefix}-${String(newIdNumber).padStart(3, '0')}`;
 
-    const projectDocRef = doc(firestore, 'projects', newDemandData.projectId);
-    const projectDoc = await getDoc(projectDocRef);
-    const projectData = projectDoc.data() as Project;
+    const tagColors = {
+        'Marketing': 'blue',
+        'Audiovisual': 'purple',
+        'Cerimonial': 'orange',
+        'Geral': 'orange',
+    } as const;
+    
+    const categoryLabel = newDemandData.category as keyof typeof tagColors;
+    const tagColor = tagColors[categoryLabel] || 'orange';
 
     const newDemand = {
       id: newDemandId,
@@ -61,9 +74,7 @@ export default function DemandasPage() {
       description: newDemandData.description || '',
       projectId: newDemandData.projectId,
       assignees: ['user-avatar-1'], // Placeholder
-      tags: projectData?.title?.includes('Marketing') ? [{ label: 'Marketing', color: 'blue' }] : 
-            projectData?.title?.includes('Audiovisual') ? [{ label: 'Audiovisual', color: 'purple'}] : 
-            [{ label: 'Geral', color: 'orange' }],
+      tags: [{ label: categoryLabel, color: tagColor }],
       status: 'Aguardando briefing',
       date: FSTimestamp.fromDate(newDemandData.dueDate),
     };
@@ -84,9 +95,17 @@ export default function DemandasPage() {
   }, [demands]);
   
   const categoriasUnicas = React.useMemo(() => {
-      if (!demands) return [];
-      const allTags = demands.flatMap(d => d.tags.map(t => t.label));
-      return [...new Set(allTags)].filter(t => !['Urgente'].includes(t));
+      const allTags = new Set<string>();
+      if(demands) {
+        demands.forEach(d => {
+            d.tags.forEach(t => {
+                if(t.label !== 'Urgente') allTags.add(t.label)
+            })
+        });
+      }
+      // Add default categories in case they are not in any demand yet
+      ['Marketing', 'Audiovisual', 'Cerimonial'].forEach(cat => allTags.add(cat));
+      return Array.from(allTags);
   }, [demands]);
 
   const demandsWithOverdue = React.useMemo(() => {
