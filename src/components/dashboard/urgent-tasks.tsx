@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import {
@@ -8,7 +9,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow, Timestamp } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
 import { ptBR } from 'date-fns/locale';
 import type { DemandProps } from '@/components/demandas/demand-card';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -21,6 +23,10 @@ const getDateFromProp = (dateProp: any): Date | null => {
     if (!dateProp) return null;
     if (dateProp && typeof (dateProp as Timestamp).toDate === 'function') {
       return (dateProp as Timestamp).toDate();
+    }
+    if (typeof dateProp === 'string') {
+        const parsed = new Date(dateProp);
+        if (!isNaN(parsed.getTime())) return parsed;
     }
     return null;
 };
@@ -79,6 +85,7 @@ export function UrgentTasks() {
             {urgentDemands.map((task) => {
                 const urgency = getUrgency(task.isOverdue);
                 const deadline = task.isOverdue ? 'Atrasado' : (task.dateObj ? formatDistanceToNow(task.dateObj, { addSuffix: true, locale: ptBR }) : 'Sem prazo');
+                const category = task.tags?.find(t => t.label !== 'Urgente')?.label || '';
                 return (
                     <div
                     key={task.id}
@@ -89,7 +96,7 @@ export function UrgentTasks() {
                     >
                     <div>
                         <p className="font-semibold text-base">{task.title}</p>
-                        <p className="text-sm text-muted-foreground">{task.tags.find(t => t.label !== 'Urgente')?.label || ''}</p>
+                        <p className="text-sm text-muted-foreground">{category}</p>
                     </div>
                     <div
                         className={cn(

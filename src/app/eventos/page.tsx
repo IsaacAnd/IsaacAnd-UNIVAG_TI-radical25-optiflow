@@ -7,8 +7,8 @@ import { EventosHeader } from '@/components/eventos/header';
 import { Calendar } from '@/components/eventos/calendar';
 import type { DemandProps } from '@/components/demandas/demand-card';
 import type { Project } from '@/components/projetos/projects-table';
-import { initialDemands } from '@/lib/demandas-data';
-import { initialProjects } from '@/lib/projetos-data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, Timestamp } from 'firebase/firestore';
 
 interface CalendarEvent {
   date: string;
@@ -16,19 +16,33 @@ interface CalendarEvent {
   color: string;
 }
 
+const getDateFromProp = (dateProp: any): Date | null => {
+    if (!dateProp) return null;
+    if (dateProp && typeof (dateProp as Timestamp).toDate === 'function') {
+      return (dateProp as Timestamp).toDate();
+    }
+     if (typeof dateProp === 'string') {
+        const parsed = new Date(dateProp);
+        if (!isNaN(parsed.getTime())) {
+            return parsed;
+        }
+    }
+    return null;
+};
+
 export default function EventosPage() {
-  const [demands, setDemands] = React.useState<DemandProps[]>([]);
-  const [projects, setProjects] = React.useState<Project[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const firestore = useFirestore();
 
-  React.useEffect(() => {
-    // Simulate fetching data
-    setDemands(initialDemands as DemandProps[]);
-    setProjects(initialProjects);
-    setIsLoading(false);
-  }, []);
+  const demandsRef = useMemoFirebase(() => collection(firestore, 'demands'), [firestore]);
+  const { data: demands, isLoading: isLoadingDemands } = useCollection<DemandProps>(demandsRef);
 
-  const getEventColor = (tags: {label: string}[]) => {
+  const projectsRef = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
+  const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsRef);
+
+  const isLoading = isLoadingDemands || isLoadingProjects;
+
+  const getEventColor = (tags?: {label: string}[]) => {
+    if (!tags) return 'bg-gray-100 text-gray-800 border-gray-500';
     if (tags.some(t => t.label === 'Marketing')) return 'bg-blue-100 text-blue-800 border-blue-500';
     if (tags.some(t => t.label === 'Audiovisual')) return 'bg-purple-100 text-purple-800 border-purple-500';
     if (tags.some(t => t.label === 'Cerimonial')) return 'bg-orange-100 text-orange-800 border-orange-500';
@@ -39,7 +53,7 @@ export default function EventosPage() {
     const demandEvents = demands
       ?.filter(d => d.date)
       .map(d => ({
-        date: d.date as string,
+        date: (getDateFromProp(d.date) as Date).toISOString(),
         title: d.title,
         color: getEventColor(d.tags),
       })) || [];
@@ -47,7 +61,7 @@ export default function EventosPage() {
     const projectEvents = projects
       ?.filter(p => p.deadline)
       .map(p => ({
-        date: p.deadline,
+        date: (getDateFromProp(p.deadline) as Date).toISOString(),
         title: p.title,
         color: 'bg-green-100 text-green-800 border-green-500', // Projects are green
       })) || [];
