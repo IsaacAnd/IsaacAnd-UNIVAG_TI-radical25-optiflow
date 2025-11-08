@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { SidebarInset } from '@/components/ui/sidebar';
@@ -5,9 +6,9 @@ import { MainSidebar } from '@/components/layout/main-sidebar';
 import { ProjetosHeader } from '@/components/projetos/header';
 import { ProjectsTable, Project } from '@/components/projetos/projects-table';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { parseISO, Timestamp } from 'date-fns';
+import { parseISO } from 'date-fns';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
 
 
 export default function ProjetosPage() {
@@ -19,8 +20,8 @@ export default function ProjetosPage() {
   const [teamFilter, setTeamFilter] = React.useState<string[]>([]);
   const [sortBy, setSortBy] = React.useState<string>('');
 
-  const handleAddProject = async (newProjectData: Omit<Project, 'id' | 'status' | 'progress' | 'progressColor' | 'team' | 'deadline'> & {endDate: Date}) => {
-    const newProject: Omit<Project, 'id'> = {
+  const handleAddProject = async (newProjectData: Omit<Project, 'id' | 'status' | 'progress' | 'progressColor' | 'team' | 'deadline'> & {endDate: Date, startDate: Date}) => {
+    const newProject = {
         title: newProjectData.title,
         description: newProjectData.description || '',
         status: {
@@ -31,7 +32,8 @@ export default function ProjetosPage() {
         progress: 0,
         progressColor: '[&>div]:bg-blue-500',
         team: ['user-avatar-1'], // Placeholder for current user
-        deadline: newProjectData.endDate.toISOString(),
+        deadline: Timestamp.fromDate(newProjectData.endDate),
+        startDate: Timestamp.fromDate(newProjectData.startDate)
     };
     await addDoc(projectsRef, newProject);
   };
@@ -58,7 +60,9 @@ export default function ProjetosPage() {
         newFilteredProjects.sort((a, b) => {
             if (sortBy === 'Prazo') {
                 if (!a.deadline || !b.deadline) return 0;
-                return parseISO(a.deadline).getTime() - parseISO(b.deadline).getTime();
+                const dateA = (a.deadline as Timestamp).toDate();
+                const dateB = (b.deadline as Timestamp).toDate();
+                return dateA.getTime() - dateB.getTime();
             }
             if (sortBy === 'Progresso') {
                 return b.progress - a.progress;
@@ -100,3 +104,5 @@ export default function ProjetosPage() {
     </div>
   );
 }
+
+    

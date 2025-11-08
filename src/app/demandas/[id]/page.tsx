@@ -31,6 +31,7 @@ import { ptBR } from 'date-fns/locale';
 import { useDoc, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { doc, collection, addDoc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { DemandProps } from '@/components/demandas/demand-card';
+import { Project } from '@/components/projetos/projects-table';
 
 interface Task {
   id: string;
@@ -96,6 +97,9 @@ export default function DemandDetailPage() {
   const demandRef = useMemoFirebase(() => doc(firestore, 'demands', id), [firestore, id]);
   const { data: demand, isLoading: isDemandLoading } = useDoc<DemandProps>(demandRef);
   
+  const projectRef = useMemoFirebase(() => (demand?.projectId ? doc(firestore, 'projects', demand.projectId) : null), [firestore, demand?.projectId]);
+  const { data: project, isLoading: isProjectLoading } = useDoc<Project>(projectRef);
+
   const tasksRef = useMemoFirebase(() => collection(firestore, 'demands', id, 'tasks'), [firestore, id]);
   const { data: tasks, isLoading: areTasksLoading } = useCollection<Task>(tasksRef);
   
@@ -105,7 +109,7 @@ export default function DemandDetailPage() {
   const [newComment, setNewComment] = React.useState('');
   const [newTaskLabel, setNewTaskLabel] = React.useState('');
   
-  const isLoading = isDemandLoading || areTasksLoading || areCommentsLoading;
+  const isLoading = isDemandLoading || areTasksLoading || areCommentsLoading || isProjectLoading;
 
 
   const handleTaskCheck = async (taskId: string, currentChecked: boolean) => {
@@ -169,8 +173,7 @@ export default function DemandDetailPage() {
             <NextLink href="/projetos">Projetos</NextLink>
             <ChevronRight className="h-5 w-5" />
             <NextLink href={`/projetos`}> 
-              {/* This should be the project name, needs a fetch */}
-              Projeto
+              {project?.title || 'Projeto'}
             </NextLink>
             <ChevronRight className="h-5 w-5" />
             <span className="text-foreground">{demand.title}</span>

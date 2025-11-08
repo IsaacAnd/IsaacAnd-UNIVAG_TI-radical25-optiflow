@@ -1,3 +1,4 @@
+
 'use client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +17,9 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
+import type { Timestamp } from 'firebase/firestore';
+
 
 export interface Project {
   id: string;
@@ -30,13 +33,26 @@ export interface Project {
   progress: number;
   progressColor: string;
   team: string[];
-  deadline: string;
+  deadline: string | Timestamp;
+  startDate?: string | Timestamp;
 }
 
 interface ProjectsTableProps {
     projects: Project[] | null;
     isLoading: boolean;
 }
+
+const getDateFromProp = (dateProp: Project['deadline']): Date | null => {
+    if (!dateProp) return null;
+    if (typeof dateProp === 'string') {
+        const parsed = new Date(dateProp);
+        if (!isNaN(parsed.getTime())) return parsed;
+    }
+    if (dateProp && typeof (dateProp as Timestamp).toDate === 'function') {
+      return (dateProp as Timestamp).toDate();
+    }
+    return null;
+  };
 
 
 export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
@@ -75,44 +91,47 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
                 </TableRow>
               ))
             ) : (
-              projects?.map((project) => (
-                <TableRow key={project.id}>
-                  <TableCell className="font-medium">{project.title}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn('font-normal', project.status.color)}
-                    >
-                      <div className={cn("w-2 h-2 rounded-full mr-2", project.status.bgColor)}></div>
-                      {project.status.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Progress value={project.progress} className={cn("h-2", project.progressColor)} />
-                      <span className="text-muted-foreground">{project.progress}%</span>
+              projects?.map((project) => {
+                const deadlineDate = getDateFromProp(project.deadline);
+                return (
+                    <TableRow key={project.id}>
+                    <TableCell className="font-medium">{project.title}</TableCell>
+                    <TableCell>
+                        <Badge
+                        variant="outline"
+                        className={cn('font-normal', project.status.color)}
+                        >
+                        <div className={cn("w-2 h-2 rounded-full mr-2", project.status.bgColor)}></div>
+                        {project.status.label}
+                        </Badge>
+                    </TableCell>
+                    <TableCell>
+                        <div className="flex items-center gap-3">
+                        <Progress value={project.progress} className={cn("h-2", project.progressColor)} />
+                        <span className="text-muted-foreground">{project.progress}%</span>
+                        </div>
+                    </TableCell>
+                    <TableCell>
+                    <div className="flex -space-x-2">
+                        {project.team.map(assigneeId => {
+                        const avatar = getAssigneeAvatar(assigneeId);
+                        return (
+                            <Avatar key={assigneeId} className="h-7 w-7 border-2 border-background">
+                            {avatar && (
+                                <AvatarImage src={avatar.imageUrl} alt={avatar.description} />
+                            )}
+                            <AvatarFallback>{assigneeId.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                        );
+                        })}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                  <div className="flex -space-x-2">
-                    {project.team.map(assigneeId => {
-                      const avatar = getAssigneeAvatar(assigneeId);
-                      return (
-                        <Avatar key={assigneeId} className="h-7 w-7 border-2 border-background">
-                          {avatar && (
-                            <AvatarImage src={avatar.imageUrl} alt={avatar.description} />
-                          )}
-                          <AvatarFallback>{assigneeId.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                      );
-                    })}
-                  </div>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {project.deadline ? format(parseISO(project.deadline), 'dd/MM/yyyy') : '-'}
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                        {deadlineDate ? format(deadlineDate, 'dd/MM/yyyy') : '-'}
+                    </TableCell>
+                    </TableRow>
+                )
+            })
             )}
           </TableBody>
         </Table>
@@ -120,3 +139,5 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
     </Card>
   );
 }
+
+    
