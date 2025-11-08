@@ -26,7 +26,7 @@ import { SidebarInset } from '@/components/ui/sidebar';
 import { MainSidebar } from '@/components/layout/main-sidebar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { notFound, useParams } from 'next/navigation';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDoc, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { doc, collection, addDoc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
@@ -47,7 +47,8 @@ interface Comment {
     timestamp: Timestamp;
 }
 
-const getPriorityDetails = (priority: string) => {
+const getPriorityDetails = (priority?: string) => {
+  if (!priority) return { label: 'Não definida', color: 'text-gray-500' };
   switch (priority) {
     case 'Urgente':
       return { label: 'Alta', color: 'text-red-500' };
@@ -62,7 +63,8 @@ const getPriorityDetails = (priority: string) => {
   }
 };
 
-const getStatusDetails = (status: string) => {
+const getStatusDetails = (status?: string) => {
+  if (!status) return { label: 'Não definido', color: 'text-gray-500' };
   switch (status) {
     case 'Aguardando briefing':
       return { label: status, color: 'text-yellow-500' };
@@ -159,7 +161,7 @@ export default function DemandDetailPage() {
   const totalTasks = tasks?.length || 0;
   const checklistProgress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
   
-  const priority = getPriorityDetails((demand.tags.find(t => t.label === "Urgente") ? 'Urgente' : 'Média'));
+  const priority = getPriorityDetails(demand.tags.find(t => t.label === "Urgente") ? 'Urgente' : 'Média');
   const status = getStatusDetails(demand.status);
   const userAvatar = PlaceHolderImages.find((p) => p.id === 'user-avatar-1');
   const demandDate = getDateFromProp(demand.date);
@@ -388,5 +390,3 @@ export default function DemandDetailPage() {
     </div>
   );
 }
-
-    
