@@ -6,9 +6,22 @@ import { DashboardHeader } from '@/components/dashboard/header';
 import { StatsCards } from '@/components/dashboard/stats-cards';
 import { DemandsChart } from '@/components/dashboard/demands-chart';
 import { UrgentTasks } from '@/components/dashboard/urgent-tasks';
-//a
+import { useUser } from '@/firebase';
 
 export default function Home() {
+    const { user, isUserLoading } = useUser();
+    
+    if (isUserLoading) {
+        return (
+             <div className="flex min-h-screen w-full bg-background">
+                <MainSidebar currentPage="dashboard" />
+                <SidebarInset className="flex flex-col flex-1">
+                    <div className="flex-1 p-8">Carregando...</div>
+                </SidebarInset>
+             </div>
+        )
+    }
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       <MainSidebar currentPage="dashboard" />

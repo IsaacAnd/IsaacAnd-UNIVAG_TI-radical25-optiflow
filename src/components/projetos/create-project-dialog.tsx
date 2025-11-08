@@ -31,14 +31,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import { Project } from './projects-table';
 
 
 const projectSchema = z.object({
   title: z.string().min(1, 'O título é obrigatório.'),
+  description: z.string().optional(),
   startDate: z.date({ required_error: 'A data de início é obrigatória.' }),
   endDate: z.date({ required_error: 'A data de término é obrigatória.' }),
-  description: z.string().optional(),
 }).refine(data => data.endDate >= data.startDate, {
   message: 'A data de término não pode ser anterior à data de início.',
   path: ['endDate'],
@@ -56,6 +55,7 @@ export function CreateProjectDialog({ onAddProject }: CreateProjectDialogProps) 
     resolver: zodResolver(projectSchema),
     defaultValues: {
       title: '',
+      description: '',
     },
   });
 

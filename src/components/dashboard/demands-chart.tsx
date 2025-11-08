@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -18,9 +17,9 @@ import {
 } from '@/components/ui/chart';
 import { cn } from '@/lib/utils';
 import type { DemandProps } from '@/components/demandas/demand-card';
-import { initialDemands } from '@/lib/demandas-data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
-const DEMANDS_STORAGE_KEY = 'multiflow-demands';
 
 const chartConfig = {
   demands: {
@@ -46,24 +45,9 @@ const chartConfig = {
 
 export function DemandsChart() {
   const [hoveredBar, setHoveredBar] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [demands, setDemands] = React.useState<DemandProps[]>([]);
-
-  React.useEffect(() => {
-    try {
-      const storedDemands = localStorage.getItem(DEMANDS_STORAGE_KEY);
-      if (storedDemands) {
-        setDemands(JSON.parse(storedDemands));
-      } else {
-        setDemands(initialDemands as DemandProps[]);
-      }
-    } catch (error) {
-        console.error("Failed to read demands from localStorage", error);
-        setDemands(initialDemands as DemandProps[]);
-    }
-    setIsLoading(false);
-  }, []);
-
+  const firestore = useFirestore();
+  const demandsRef = useMemoFirebase(() => collection(firestore, 'demands'), [firestore]);
+  const { data: demands, isLoading } = useCollection<DemandProps>(demandsRef);
 
   const chartData = React.useMemo(() => {
     if (!demands) {

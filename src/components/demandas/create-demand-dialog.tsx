@@ -39,6 +39,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { Project } from '../projetos/projects-table';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+
 
 const demandSchema = z.object({
   title: z.string().min(1, 'O título é obrigatório.'),
@@ -53,24 +56,12 @@ interface CreateDemandDialogProps {
     onAddDemand: (data: DemandFormValues) => void;
 }
 
-const PROJECTS_STORAGE_KEY = 'multiflow-projects';
-
 export function CreateDemandDialog({ onAddDemand }: CreateDemandDialogProps) {
   const [open, setOpen] = React.useState(false);
-  const [projects, setProjects] = React.useState<Project[]>([]);
+  const firestore = useFirestore();
 
-  React.useEffect(() => {
-    if (open) {
-      try {
-        const storedProjects = localStorage.getItem(PROJECTS_STORAGE_KEY);
-        if (storedProjects) {
-          setProjects(JSON.parse(storedProjects));
-        }
-      } catch (error) {
-        console.error("Failed to load projects for dialog", error);
-      }
-    }
-  }, [open]);
+  const projectsRef = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
+  const { data: projects, isLoading: areProjectsLoading } = useCollection<Project>(projectsRef);
 
 
   const form = useForm<DemandFormValues>({
@@ -134,11 +125,15 @@ export function CreateDemandDialog({ onAddDemand }: CreateDemandDialogProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.title}
-                        </SelectItem>
-                      ))}
+                      {areProjectsLoading ? (
+                        <SelectItem value="loading" disabled>Carregando projetos...</SelectItem>
+                      ) : (
+                        projects?.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.title}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage className="col-span-4 pl-[calc(25%+1rem)]" />

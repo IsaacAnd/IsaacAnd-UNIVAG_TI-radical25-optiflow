@@ -9,9 +9,8 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Search, ChevronDown, User, Tag, Calendar, PlusCircle } from 'lucide-react';
+import { Search, ChevronDown, User, Tag, Calendar } from 'lucide-react';
 import { CreateDemandDialog } from './create-demand-dialog';
-import { DemandProps } from './demand-card';
 
 interface DemandasHeaderProps {
   search: string;
@@ -42,17 +41,18 @@ export function DemandasHeader({
 }: DemandasHeaderProps) {
 
   const handleCheckedChange = (
-    setState: React.Dispatch<React.SetStateAction<string[]>>,
+    currentSelection: string[],
+    setState: (value: string[]) => void,
     currentValue: string
   ) => {
     return (checked: boolean) => {
-      setState(prev => {
+        let newState: string[];
         if (checked) {
-          return [...prev, currentValue];
+          newState = [...currentSelection, currentValue];
         } else {
-          return prev.filter(item => item !== currentValue);
+          newState = currentSelection.filter(item => item !== currentValue);
         }
-      });
+        setState(newState);
     };
   };
 
@@ -84,7 +84,7 @@ export function DemandasHeader({
               <DropdownMenuCheckboxItem
                 key={r}
                 checked={responsavel.includes(r)}
-                onCheckedChange={handleCheckedChange(onResponsavelChange, r)}
+                onCheckedChange={handleCheckedChange(responsavel, onResponsavelChange, r)}
               >
                 {r}
               </DropdownMenuCheckboxItem>
@@ -104,7 +104,7 @@ export function DemandasHeader({
                  <DropdownMenuCheckboxItem
                     key={c}
                     checked={categoria.includes(c)}
-                    onCheckedChange={handleCheckedChange(onCategoriaChange, c)}
+                    onCheckedChange={handleCheckedChange(categoria, onCategoriaChange, c)}
                  >{c}</DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -120,15 +120,15 @@ export function DemandasHeader({
           <DropdownMenuContent className="w-56">
             <DropdownMenuCheckboxItem
               checked={prazo.includes('Esta semana')}
-              onCheckedChange={handleCheckedChange(onPrazoChange, 'Esta semana')}
+              onCheckedChange={handleCheckedChange(prazo, onPrazoChange, 'Esta semana')}
             >Esta semana</DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={prazo.includes('Este mês')}
-              onCheckedChange={handleCheckedChange(onPrazoChange, 'Este mês')}
+              onCheckedChange={handleCheckedChange(prazo, onPrazoChange, 'Este mês')}
             >Este mês</DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={prazo.includes('Atrasados')}
-              onCheckedChange={handleCheckedChange(onPrazoChange, 'Atrasados')}
+              onCheckedChange={handleCheckedChange(prazo, onPrazoChange, 'Atrasados')}
             >Atrasados</DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>

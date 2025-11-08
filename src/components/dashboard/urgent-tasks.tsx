@@ -1,4 +1,3 @@
-
 'use client';
 import * as React from 'react';
 import {
@@ -9,26 +8,19 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { formatDistanceToNow, Timestamp } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { DemandProps } from '@/components/demandas/demand-card';
-import { initialDemands } from '@/lib/demandas-data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
-const DEMANDS_STORAGE_KEY = 'multiflow-demands';
 
 type Urgency = 'high' | 'medium' | 'low';
 
 const getDateFromProp = (dateProp: any): Date | null => {
     if (!dateProp) return null;
-    if (typeof dateProp === 'string') {
-        try {
-            const parsed = parseISO(dateProp);
-            if (!isNaN(parsed.getTime())) {
-                return parsed;
-            }
-        } catch (e) {
-            return null;
-        }
+    if (dateProp && typeof (dateProp as Timestamp).toDate === 'function') {
+      return (dateProp as Timestamp).toDate();
     }
     return null;
 };
@@ -46,25 +38,12 @@ const urgencyStyles: Record<Urgency, string> = {
 };
 
 export function UrgentTasks() {
-    const [demands, setDemands] = React.useState<DemandProps[]>([]);
-    const [isLoading, setIsLoading] = React.useState(true);
-
-    React.useEffect(() => {
-        try {
-            const storedDemands = localStorage.getItem(DEMANDS_STORAGE_KEY);
-            if (storedDemands) {
-                setDemands(JSON.parse(storedDemands));
-            } else {
-                setDemands(initialDemands as DemandProps[]);
-            }
-        } catch (error) {
-            console.error("Failed to read demands from localStorage", error);
-            setDemands(initialDemands as DemandProps[]);
-        }
-        setIsLoading(false);
-    }, []);
+    const firestore = useFirestore();
+    const demandsRef = useMemoFirebase(() => collection(firestore, 'demands'), [firestore]);
+    const { data: demands, isLoading } = useCollection<DemandProps>(demandsRef);
 
     const urgentDemands = React.useMemo(() => {
+        if (!demands) return [];
         return demands
             .filter(d => d.status !== 'Finalizado' && d.date)
             .map(d => {

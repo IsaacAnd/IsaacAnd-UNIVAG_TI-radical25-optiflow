@@ -5,50 +5,24 @@ import { MainSidebar } from '@/components/layout/main-sidebar';
 import { ProjetosHeader } from '@/components/projetos/header';
 import { ProjectsTable, Project } from '@/components/projetos/projects-table';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { parseISO } from 'date-fns';
-import { initialProjects } from '@/lib/projetos-data';
+import { parseISO, Timestamp } from 'date-fns';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
-const PROJECTS_STORAGE_KEY = 'multiflow-projects';
 
 export default function ProjetosPage() {
-  const [projects, setProjects] = React.useState<Project[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const firestore = useFirestore();
+  const projectsRef = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
+  const { data: projects, isLoading } = useCollection<Project>(projectsRef);
 
   const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
   const [teamFilter, setTeamFilter] = React.useState<string[]>([]);
   const [sortBy, setSortBy] = React.useState<string>('');
 
-  React.useEffect(() => {
-    try {
-      const storedProjects = localStorage.getItem(PROJECTS_STORAGE_KEY);
-      if (storedProjects) {
-        setProjects(JSON.parse(storedProjects));
-      } else {
-        const projectsWithIds = initialProjects.map((p, i) => ({ ...p, id: `PROJ-${i + 1}` }));
-        setProjects(projectsWithIds);
-        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projectsWithIds));
-      }
-    } catch (error) {
-      console.error("Failed to read from localStorage", error);
-      const projectsWithIds = initialProjects.map((p, i) => ({ ...p, id: `PROJ-${i + 1}` }));
-      setProjects(projectsWithIds);
-    }
-    setIsLoading(false);
-  }, []);
-
-  const updateAndStoreProjects = (newProjects: Project[]) => {
-    setProjects(newProjects);
-    try {
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(newProjects));
-    } catch (error) {
-        console.error("Failed to write to localStorage", error);
-    }
-  };
-
-  const handleAddProject = (newProjectData: Omit<Project, 'id' | 'status' | 'progress' | 'progressColor' | 'team' | 'deadline'> & {endDate: Date}) => {
-    const newProject: Project = {
-        ...newProjectData,
-        id: `PROJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+  const handleAddProject = async (newProjectData: Omit<Project, 'id' | 'status' | 'progress' | 'progressColor' | 'team' | 'deadline'> & {endDate: Date}) => {
+    const newProject: Omit<Project, 'id'> = {
+        title: newProjectData.title,
+        description: newProjectData.description || '',
         status: {
             label: 'Ativo',
             color: 'border-blue-500 bg-blue-500/10 text-blue-700',
@@ -59,11 +33,12 @@ export default function ProjetosPage() {
         team: ['user-avatar-1'], // Placeholder for current user
         deadline: newProjectData.endDate.toISOString(),
     };
-    updateAndStoreProjects([newProject, ...projects]);
+    await addDoc(projectsRef, newProject);
   };
 
 
   const filteredProjects = React.useMemo(() => {
+    if (!projects) return [];
     let newFilteredProjects = [...projects];
 
     if (statusFilter.length > 0) {
@@ -99,6 +74,7 @@ export default function ProjetosPage() {
   }, [statusFilter, teamFilter, sortBy, projects]);
 
   const allTeamMembers = React.useMemo(() => {
+      if (!projects) return [];
       const memberIds = new Set(projects.flatMap(p => p.team));
       return PlaceHolderImages.filter(p => memberIds.has(p.id)).map(p => p.description.split(' ')[0]);
   }, [projects]);

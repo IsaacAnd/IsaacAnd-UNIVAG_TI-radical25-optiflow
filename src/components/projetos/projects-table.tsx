@@ -21,6 +21,7 @@ import { format, parseISO } from 'date-fns';
 export interface Project {
   id: string;
   title: string;
+  description: string;
   status: {
     label: string;
     color: string;
@@ -33,7 +34,7 @@ export interface Project {
 }
 
 interface ProjectsTableProps {
-    projects: Project[];
+    projects: Project[] | null;
     isLoading: boolean;
 }
 
@@ -74,7 +75,7 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
                 </TableRow>
               ))
             ) : (
-              projects.map((project) => (
+              projects?.map((project) => (
                 <TableRow key={project.id}>
                   <TableCell className="font-medium">{project.title}</TableCell>
                   <TableCell>

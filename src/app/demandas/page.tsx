@@ -6,85 +6,47 @@ import { MainSidebar } from '@/components/layout/main-sidebar';
 import { DemandasHeader } from '@/components/demandas/header';
 import { KanbanBoard } from '@/components/demandas/kanban-board';
 import { DemandProps } from '@/components/demandas/demand-card';
-import { isWithinInterval, endOfWeek, startOfWeek, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { isWithinInterval, endOfWeek, startOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { initialDemands } from '@/lib/demandas-data';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, updateDoc, doc, Timestamp as FSTimestamp } from 'firebase/firestore';
 
-const DEMANDS_STORAGE_KEY = 'multiflow-demands';
 
 const getDateFromProp = (dateProp: DemandProps['date']): Date | null => {
     if (!dateProp) return null;
-    if (typeof dateProp === 'string') {
-        try {
-            const parsed = parseISO(dateProp);
-            if (!isNaN(parsed.getTime())) {
-                return parsed;
-            }
-        } catch (e) {
-            return null;
-        }
+    if (dateProp && typeof (dateProp as FSTimestamp).toDate === 'function') {
+      return (dateProp as FSTimestamp).toDate();
     }
     return null;
 };
 
-// Function to generate unique IDs for static data
-const addIdsToDemands = (demands: any[]) => {
-    const idMapping: Record<string, string> = {
-        'Criação de arte para evento de formatura': 'MKT-102',
-        'Roteiro para vídeo institucional de 2024': 'AV-045',
-        'Organizar coffee break para evento': 'CER-013',
-        'Planejamento do cerimonial da colação': 'CER-012',
-        'Gravação do vídeo com o Reitor': 'AV-044',
-        'Campanha de matrículas para redes sociais': 'MKT-101',
-        'Atualizar site com novas informações': 'MKT-103',
-        'Aprovação do convite para o evento': 'CER-011',
-        'Post de boas-vindas para calouros': 'MKT-099',
-        'Legendar vídeo institucional': 'AV-046',
-    };
-    return demands.map(d => ({ ...d, id: idMapping[d.title] || `DEM-${Math.random().toString(36).substr(2, 5).toUpperCase()}` }));
-};
-
 
 export default function DemandasPage() {
-  const [demands, setDemands] = React.useState<DemandProps[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const firestore = useFirestore();
+  const demandsRef = useMemoFirebase(() => collection(firestore, 'demands'), [firestore]);
+  const { data: demands, isLoading } = useCollection<DemandProps>(demandsRef);
 
   const [search, setSearch] = React.useState('');
   const [responsavel, setResponsavel] = React.useState<string[]>([]);
   const [categoria, setCategoria] = React.useState<string[]>([]);
   const [prazo, setPrazo] = React.useState<string[]>([]);
 
-  React.useEffect(() => {
-    // Forcing the use of initialDemands from the file to ensure dates are correct.
-    const demandsWithIds = addIdsToDemands(initialDemands);
-    setDemands(demandsWithIds);
-    localStorage.setItem(DEMANDS_STORAGE_KEY, JSON.stringify(demandsWithIds));
-    setIsLoading(false);
-  }, []);
 
-  const updateAndStoreDemands = (newDemands: DemandProps[]) => {
-      setDemands(newDemands);
-      try {
-          localStorage.setItem(DEMANDS_STORAGE_KEY, JSON.stringify(newDemands));
-      } catch (error) {
-          console.error("Failed to write to localStorage", error);
-      }
-  };
-
-
-  const handleAddDemand = (newDemandData: Omit<DemandProps, 'id' | 'isOverdue' | 'assignees' | 'tags' | 'date'> & { dueDate: Date; projectId: string }) => {
-    const newDemand: DemandProps = {
-      ...newDemandData,
-      id: `DEM-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+  const handleAddDemand = async (newDemandData: Omit<DemandProps, 'id' | 'isOverdue' | 'assignees' | 'tags' | 'date'> & { dueDate: Date; projectId: string }) => {
+    const newDemand = {
+      title: newDemandData.title,
+      description: newDemandData.description || '',
+      projectId: newDemandData.projectId,
       assignees: ['user-avatar-1'], // Placeholder
       tags: [{ label: 'Marketing', color: 'blue' }], // Placeholder
       status: 'Aguardando briefing',
-      date: newDemandData.dueDate.toISOString(),
+      date: FSTimestamp.fromDate(newDemandData.dueDate),
     };
-    updateAndStoreDemands([newDemand, ...demands]);
+    await addDoc(demandsRef, newDemand);
   };
 
   const responsaveisUnicos = React.useMemo(() => {
+    if (!demands) return [];
     const allAssignees = demands.flatMap(d => d.assignees);
     const uniqueAssigneeData = PlaceHolderImages.filter(p => allAssignees.includes(p.id));
     const nameIdMap = new Map(uniqueAssigneeData.map(u => {
@@ -95,11 +57,13 @@ export default function DemandasPage() {
   }, [demands]);
   
   const categoriasUnicas = React.useMemo(() => {
+      if (!demands) return [];
       const allTags = demands.flatMap(d => d.tags.map(t => t.label));
       return [...new Set(allTags)].filter(t => !['Urgente'].includes(t));
   }, [demands]);
 
   const demandsWithOverdue = React.useMemo(() => {
+    if (!demands) return [];
     return demands.map(d => {
         const demandDate = getDateFromProp(d.date);
         return {
@@ -164,11 +128,9 @@ export default function DemandasPage() {
     return newFilteredDemands;
   }, [search, responsavel, categoria, prazo, demandsWithOverdue]);
   
-  const handleStatusChange = (demandId: string, newStatus: string) => {
-    const newDemands = demands.map(d => 
-        d.id === demandId ? { ...d, status: newStatus } : d
-    );
-    updateAndStoreDemands(newDemands);
+  const handleStatusChange = async (demandId: string, newStatus: string) => {
+    const demandDocRef = doc(firestore, 'demands', demandId);
+    await updateDoc(demandDocRef, { status: newStatus });
   };
 
   if (isLoading) {

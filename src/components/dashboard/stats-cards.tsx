@@ -1,59 +1,39 @@
-
 'use client';
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Clock, ListTodo } from 'lucide-react';
-import { isAfter, isBefore, addDays, startOfToday, parseISO } from 'date-fns';
+import { isAfter, isBefore, addDays, startOfToday, Timestamp } from 'date-fns';
 import type { DemandProps } from '@/components/demandas/demand-card';
-import { initialDemands } from '@/lib/demandas-data';
-import { initialProjects } from '@/lib/projetos-data';
-
-// Assuming a similar shape for Project
-interface Project {
-  status: { label: string };
-  deadline: string;
-}
-
-const DEMANDS_STORAGE_KEY = 'multiflow-demands';
-const PROJECTS_STORAGE_KEY = 'multiflow-projects';
+import type { Project } from '@/components/projetos/projects-table';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 
 const getDateFromProp = (dateProp: any): Date | null => {
     if (!dateProp) return null;
-    if (typeof dateProp === 'string') {
-        try {
-            const parsed = parseISO(dateProp);
-            if (!isNaN(parsed.getTime())) {
-                return parsed;
-            }
-        } catch (e) {
-            return null;
+    if (dateProp && typeof (dateProp as Timestamp).toDate === 'function') {
+      return (dateProp as Timestamp).toDate();
+    }
+     if (typeof dateProp === 'string') { // Fallback for ISO strings
+        const parsed = new Date(dateProp);
+        if (!isNaN(parsed.getTime())) {
+            return parsed;
         }
     }
     return null;
 };
 
 export function StatsCards() {
-  const [demands, setDemands] = React.useState<DemandProps[]>([]);
-  const [projects, setProjects] = React.useState<Project[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const firestore = useFirestore();
 
-  React.useEffect(() => {
-    try {
-        const storedDemands = localStorage.getItem(DEMANDS_STORAGE_KEY);
-        setDemands(storedDemands ? JSON.parse(storedDemands) : (initialDemands as DemandProps[]));
+  const demandsRef = useMemoFirebase(() => collection(firestore, 'demands'), [firestore]);
+  const { data: demands, isLoading: isLoadingDemands } = useCollection<DemandProps>(demandsRef);
 
-        const storedProjects = localStorage.getItem(PROJECTS_STORAGE_KEY);
-        setProjects(storedProjects ? JSON.parse(storedProjects) : initialProjects);
+  const projectsRef = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
+  const { data: projects, isLoading: isLoadingProjects } = useCollection<Project>(projectsRef);
 
-    } catch (error) {
-        console.error("Failed to read from localStorage", error);
-        setDemands(initialDemands as DemandProps[]);
-        setProjects(initialProjects);
-    }
-    setIsLoading(false);
-  }, []);
-  
+  const isLoading = isLoadingDemands || isLoadingProjects;
+
   const stats = React.useMemo(() => {
     const today = startOfToday();
     const nextWeek = addDays(today, 7);

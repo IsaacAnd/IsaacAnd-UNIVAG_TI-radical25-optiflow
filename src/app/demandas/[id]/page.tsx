@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -25,13 +26,25 @@ import { SidebarInset } from '@/components/ui/sidebar';
 import { MainSidebar } from '@/components/layout/main-sidebar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { notFound, useParams } from 'next/navigation';
-import { format, parseISO, subDays } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { initialDemands } from '@/lib/demandas-data';
+import { useDoc, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { doc, collection, addDoc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { DemandProps } from '@/components/demandas/demand-card';
 
-const DEMANDS_STORAGE_KEY = 'multiflow-demands';
-const DEMAND_DETAILS_STORAGE_KEY_PREFIX = 'multiflow-demand-details-';
+interface Task {
+  id: string;
+  label: string;
+  checked: boolean;
+}
+
+interface Comment {
+    id: string;
+    author: string;
+    avatarId: string;
+    text: string;
+    timestamp: Timestamp;
+}
 
 const getPriorityDetails = (priority: string) => {
   switch (priority) {
@@ -42,7 +55,7 @@ const getPriorityDetails = (priority: string) => {
     case 'Média':
       return { label: 'Média', color: 'text-yellow-500' };
     case 'Baixa':
-      return { label: 'Baixa', 'color': 'text-gray-500' };
+      return { label: 'Baixa', color: 'text-gray-500' };
     default:
       return { label: priority, color: 'text-gray-500' };
   }
@@ -63,132 +76,66 @@ const getStatusDetails = (status: string) => {
   }
 };
 
-const defaultMockData = {
-    description: `Precisamos criar o key-visual para o evento de formatura que acontecerá em 3 semanas.\n\nRequisitos:\n- Seguir o manual da marca.\n- Criar versões para Instagram (Feed e Stories), Facebook e LinkedIn.\n- Incluir o logo dos patrocinadores.\n\nO prazo é apertado, então precisamos de agilidade.`,
-    priority: 'Urgente',
-    projectId: 'PROJ-1',
-};
 
-const initialTasks = [
-  { id: '1', label: 'Definir conceito visual', checked: true },
-  { id: '2', label: 'Criar versão para Feed', checked: false },
-  { id: '3', label: 'Adaptar para Stories', checked: false },
-];
-
-const initialComments: any[] = [];
+const getDateFromProp = (dateProp: DemandProps['date']): Date | null => {
+    if (!dateProp) return null;
+    // This part is for Firestore Timestamps
+    if (dateProp && typeof (dateProp as Timestamp).toDate === 'function') {
+      return (dateProp as Timestamp).toDate();
+    }
+    return null;
+  };
 
 
 export default function DemandDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const firestore = useFirestore();
+  const { user } = useUser();
+
+  const demandRef = useMemoFirebase(() => doc(firestore, 'demands', id), [firestore, id]);
+  const { data: demand, isLoading: isDemandLoading } = useDoc<DemandProps>(demandRef);
   
-  const [demand, setDemand] = React.useState<DemandProps | null>(null);
-  const [tasks, setTasks] = React.useState(initialTasks);
-  const [comments, setComments] = React.useState(initialComments);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const tasksRef = useMemoFirebase(() => collection(firestore, 'demands', id, 'tasks'), [firestore, id]);
+  const { data: tasks, isLoading: areTasksLoading } = useCollection<Task>(tasksRef);
+  
+  const commentsRef = useMemoFirebase(() => collection(firestore, 'demands', id, 'comments'), [firestore, id]);
+  const { data: comments, isLoading: areCommentsLoading } = useCollection<Comment>(commentsRef);
 
   const [newComment, setNewComment] = React.useState('');
   const [newTaskLabel, setNewTaskLabel] = React.useState('');
   
-  const demandDetailsStorageKey = `${DEMAND_DETAILS_STORAGE_KEY_PREFIX}${id}`;
+  const isLoading = isDemandLoading || areTasksLoading || areCommentsLoading;
 
 
-  React.useEffect(() => {
-    let allDemands: DemandProps[] = [];
-    try {
-      const storedDemands = localStorage.getItem(DEMANDS_STORAGE_KEY);
-      if (storedDemands) {
-        allDemands = JSON.parse(storedDemands);
-      } else {
-        allDemands = initialDemands.map((d, i) => ({ ...d, id: `MKT-${102+i}` })) as DemandProps[];
-      }
-    } catch (e) {
-      console.error("Failed to load demands from storage", e);
-      allDemands = initialDemands.map((d, i) => ({ ...d, id: `MKT-${102+i}` })) as DemandProps[];
-    }
-    
-    const foundDemand = allDemands.find(d => d.id === id);
-
-    if (foundDemand) {
-        // Merge with default mock data for fields that might be missing
-        const fullDemand = {
-            ...foundDemand,
-            description: foundDemand.description || defaultMockData.description,
-            priority: (foundDemand.tags.find(t => t.label === "Urgente") ? 'Urgente' : 'Média'),
-            projectId: foundDemand.projectId || defaultMockData.projectId,
-        };
-        setDemand(fullDemand);
-
-        // Load tasks and comments from localStorage
-        try {
-            const storedDetails = localStorage.getItem(demandDetailsStorageKey);
-            if (storedDetails) {
-                const { tasks: storedTasks, comments: storedComments } = JSON.parse(storedDetails);
-                setTasks(storedTasks);
-                setComments(storedComments.map((c: any) => ({...c, timestamp: parseISO(c.timestamp)})));
-            } else {
-                // If nothing is in storage, ensure comments are empty
-                setComments([]);
-            }
-        } catch (e) {
-            console.error("Failed to load demand details from storage", e);
-            setComments([]);
-        }
-
-    }
-    setIsLoading(false);
-  }, [id, demandDetailsStorageKey]);
-
-  const updateAndStoreDetails = (newTasks: any[], newComments: any[]) => {
-      setTasks(newTasks);
-      setComments(newComments);
-      try {
-        localStorage.setItem(demandDetailsStorageKey, JSON.stringify({tasks: newTasks, comments: newComments}));
-      } catch (error) {
-          console.error("Failed to write details to localStorage", error);
-      }
-  }
-
-
-  const handleTaskCheck = (taskId: string, currentChecked: boolean) => {
-    const newTasks = tasks.map(t => t.id === taskId ? { ...t, checked: !currentChecked } : t);
-    updateAndStoreDetails(newTasks, comments);
+  const handleTaskCheck = async (taskId: string, currentChecked: boolean) => {
+    const taskRef = doc(firestore, 'demands', id, 'tasks', taskId);
+    await updateDoc(taskRef, { checked: !currentChecked });
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (!newTaskLabel.trim()) return;
-    const newTask = { id: String(Date.now()), label: newTaskLabel, checked: false };
-    updateAndStoreDetails([...tasks, newTask], comments);
+    const tasksCollectionRef = collection(firestore, 'demands', id, 'tasks');
+    await addDoc(tasksCollectionRef, { label: newTaskLabel, checked: false });
     setNewTaskLabel('');
   };
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    const newCommentObj = {
-      id: String(Date.now()),
-      author: 'Ana',
-      avatarId: 'user-avatar-1',
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !user) return;
+    const commentsCollectionRef = collection(firestore, 'demands', id, 'comments');
+    await addDoc(commentsCollectionRef, {
+      author: user.displayName || 'Ana', // Use logged in user name
+      avatarId: 'user-avatar-1', // Placeholder, should be dynamic
       text: newComment,
-      timestamp: new Date(),
-    };
-    updateAndStoreDetails(tasks, [...comments, newCommentObj]);
+      timestamp: Timestamp.now(),
+    });
     setNewComment('');
   };
 
-  const handleStatusChange = (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string) => {
     if (demand) {
-      const updatedDemand = { ...demand, status: newStatus };
-      setDemand(updatedDemand);
-      try {
-        const storedDemands = localStorage.getItem(DEMANDS_STORAGE_KEY);
-        if(storedDemands){
-          const allDemands: DemandProps[] = JSON.parse(storedDemands);
-          const newDemands = allDemands.map(d => d.id === demand.id ? updatedDemand : d);
-          localStorage.setItem(DEMANDS_STORAGE_KEY, JSON.stringify(newDemands));
-        }
-      } catch (error) {
-        console.error("Failed to update demand status in localStorage", error);
-      }
+      const demandDocRef = doc(firestore, 'demands', id);
+      await updateDoc(demandDocRef, { status: newStatus });
     }
   };
 
@@ -204,14 +151,14 @@ export default function DemandDetailPage() {
     notFound();
   }
 
-  const completedTasks = tasks.filter((t) => t.checked).length;
-  const totalTasks = tasks.length;
+  const completedTasks = tasks?.filter((t) => t.checked).length || 0;
+  const totalTasks = tasks?.length || 0;
   const checklistProgress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-  const priority = getPriorityDetails(demand.priority);
+  
+  const priority = getPriorityDetails((demand.tags.find(t => t.label === "Urgente") ? 'Urgente' : 'Média'));
   const status = getStatusDetails(demand.status);
   const userAvatar = PlaceHolderImages.find((p) => p.id === 'user-avatar-1');
-  const demandDate = demand.date ? parseISO(demand.date as string) : new Date();
+  const demandDate = getDateFromProp(demand.date);
 
   return (
     <div className="flex min-h-screen w-full bg-muted/40">
@@ -222,7 +169,8 @@ export default function DemandDetailPage() {
             <NextLink href="/projetos">Projetos</NextLink>
             <ChevronRight className="h-5 w-5" />
             <NextLink href={`/projetos`}> 
-              Marketing Campaign
+              {/* This should be the project name, needs a fetch */}
+              Projeto
             </NextLink>
             <ChevronRight className="h-5 w-5" />
             <span className="text-foreground">{demand.title}</span>
@@ -256,7 +204,7 @@ export default function DemandDetailPage() {
                     <Calendar className="h-4 w-4" />
                     <div>
                       <p className="font-medium text-foreground -mb-1">
-                        {format(demandDate, 'dd MMM, yyyy', { locale: ptBR })}
+                        {demandDate ? format(demandDate, 'dd MMM, yyyy', { locale: ptBR }) : 'Sem prazo'}
                       </p>
                       <p>Prazo</p>
                     </div>
@@ -286,7 +234,7 @@ export default function DemandDetailPage() {
                 <div className="mt-6">
                   <h2 className="text-lg font-semibold mb-2">Descrição</h2>
                   <p className="text-muted-foreground whitespace-pre-wrap">
-                    {demand.description}
+                    {demand.description || 'Nenhuma descrição fornecida.'}
                   </p>
                 </div>
               </CardContent>
@@ -297,7 +245,7 @@ export default function DemandDetailPage() {
               <CardContent className="p-6">
                 <h2 className="text-lg font-semibold mb-4">Comentários</h2>
                 <div className="space-y-6">
-                  {comments.map((comment) => (
+                  {comments?.map((comment) => (
                         <div key={comment.id} className="flex gap-3">
                           <Avatar>
                             <AvatarImage
@@ -315,7 +263,7 @@ export default function DemandDetailPage() {
                             <div className="flex items-center gap-2">
                               <p className="font-semibold">{comment.author}</p>
                               <p className="text-xs text-muted-foreground">
-                                {format(comment.timestamp, 'PPp', {
+                                {format(comment.timestamp.toDate(), 'PPp', {
                                   locale: ptBR,
                                 })}
                               </p>
@@ -368,7 +316,7 @@ export default function DemandDetailPage() {
                   <Progress value={checklistProgress} className="h-2 flex-1" />
                 </div>
                 <div className="space-y-3 mb-4">
-                  {tasks.map((task) => (
+                  {tasks?.map((task) => (
                         <div key={task.id} className="flex items-center gap-3">
                           <Checkbox
                             id={`task-${task.id}`}
@@ -437,3 +385,5 @@ export default function DemandDetailPage() {
     </div>
   );
 }
+
+    

@@ -1,12 +1,30 @@
 'use client';
 
-import React, { useMemo, type ReactNode } from 'react';
-import { FirebaseProvider } from '@/firebase/provider';
+import React, { useMemo, type ReactNode, useEffect } from 'react';
+import { FirebaseProvider, useFirebase } from '@/firebase/provider';
 import { initializeFirebase } from '@/firebase';
+import { signInAnonymously } from 'firebase/auth';
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
 }
+
+// This component will handle the anonymous sign-in logic.
+function AuthHandler({ children }: { children: ReactNode }) {
+  const { auth, user, isUserLoading } = useFirebase();
+
+  useEffect(() => {
+    // When auth is ready and we confirm there's no user, sign in anonymously.
+    if (!isUserLoading && !user && auth) {
+      signInAnonymously(auth).catch((error) => {
+        console.error("Anonymous sign-in failed:", error);
+      });
+    }
+  }, [auth, user, isUserLoading]);
+
+  return <>{children}</>;
+}
+
 
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
   const firebaseServices = useMemo(() => {
@@ -20,7 +38,9 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
       auth={firebaseServices.auth}
       firestore={firebaseServices.firestore}
     >
-      {children}
+      <AuthHandler>
+        {children}
+      </AuthHandler>
     </FirebaseProvider>
   );
 }
