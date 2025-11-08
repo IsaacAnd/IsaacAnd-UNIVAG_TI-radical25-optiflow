@@ -10,7 +10,8 @@ import { DemandProps } from '@/components/demandas/demand-card';
 import { isWithinInterval, endOfWeek, startOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, updateDoc, doc, Timestamp as FSTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, setDoc, getDocs, query, where, Timestamp as FSTimestamp, getDoc } from 'firebase/firestore';
+import { Project } from '@/components/projetos/projects-table';
 
 
 const getDateFromProp = (dateProp: DemandProps['date']): Date | null => {
@@ -26,6 +27,9 @@ export default function DemandasPage() {
   const firestore = useFirestore();
   const demandsRef = useMemoFirebase(() => collection(firestore, 'demands'), [firestore]);
   const { data: demands, isLoading } = useCollection<DemandProps>(demandsRef);
+  
+  const projectsRef = useMemoFirebase(() => collection(firestore, 'projects'), [firestore]);
+  const { data: projects, isLoading: areProjectsLoading } = useCollection<Project>(projectsRef);
 
   const [search, setSearch] = React.useState('');
   const [responsavel, setResponsavel] = React.useState<string[]>([]);
@@ -33,17 +37,39 @@ export default function DemandasPage() {
   const [prazo, setPrazo] = React.useState<string[]>([]);
 
 
+  const getProjectPrefix = (projectId: string) => {
+    const project = projects?.find(p => p.id === projectId);
+    if (!project) return 'GEN';
+    return project.title.substring(0, 3).toUpperCase();
+  }
+
   const handleAddDemand = async (newDemandData: Omit<DemandProps, 'id' | 'isOverdue' | 'assignees' | 'tags' | 'date'> & { dueDate: Date; projectId: string }) => {
+    const prefix = getProjectPrefix(newDemandData.projectId);
+    
+    const q = query(demandsRef, where('id', '>=', prefix), where('id', '<', prefix + 'z'));
+    const querySnapshot = await getDocs(q);
+    const newIdNumber = querySnapshot.size + 1;
+    const newDemandId = `${prefix}-${String(newIdNumber).padStart(3, '0')}`;
+
+    const projectDocRef = doc(firestore, 'projects', newDemandData.projectId);
+    const projectDoc = await getDoc(projectDocRef);
+    const projectData = projectDoc.data() as Project;
+
     const newDemand = {
+      id: newDemandId,
       title: newDemandData.title,
       description: newDemandData.description || '',
       projectId: newDemandData.projectId,
       assignees: ['user-avatar-1'], // Placeholder
-      tags: [{ label: 'Marketing', color: 'blue' }], // Placeholder
+      tags: projectData?.title?.includes('Marketing') ? [{ label: 'Marketing', color: 'blue' }] : 
+            projectData?.title?.includes('Audiovisual') ? [{ label: 'Audiovisual', color: 'purple'}] : 
+            [{ label: 'Geral', color: 'orange' }],
       status: 'Aguardando briefing',
       date: FSTimestamp.fromDate(newDemandData.dueDate),
     };
-    await addDoc(demandsRef, newDemand);
+    
+    const demandDocRef = doc(firestore, 'demands', newDemandId);
+    await setDoc(demandDocRef, newDemand);
   };
 
   const responsaveisUnicos = React.useMemo(() => {
@@ -134,7 +160,7 @@ export default function DemandasPage() {
     await updateDoc(demandDocRef, { status: newStatus });
   };
 
-  if (isLoading) {
+  if (isLoading || areProjectsLoading) {
     return (
         <div className="flex min-h-screen w-full bg-background">
           <MainSidebar currentPage="demandas" />
@@ -169,5 +195,7 @@ export default function DemandasPage() {
     </div>
   );
 }
+
+    
 
     
