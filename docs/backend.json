@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "Demand": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Demand",
+      "type": "object",
+      "description": "Represents a demand within the MultiFlow Dashboard application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the demand."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the demand."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the demand."
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the demand (e.g., To Do, In Progress, In Review, Concluded)."
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority level of the demand (e.g., Urgent, High, Medium, Low)."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The due date for the demand.",
+          "format": "date-time"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Reference to the Project this demand belongs to. (Relationship: Project 1:N Demand)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the demand was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the demand was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "status",
+        "priority",
+        "dueDate",
+        "projectId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Project": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Project",
+      "type": "object",
+      "description": "Represents a project within the MultiFlow Dashboard application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the project."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the project."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the project."
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Start date of the project.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "End date of the project.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the project was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the project was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "startDate",
+        "endDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/projects/{projectId}",
+        "definition": {
+          "entityName": "Project",
+          "schema": {
+            "$ref": "#/backend/entities/Project"
+          },
+          "description": "Stores project data. The 'members' map for authorization (if implemented) would determine access to this project.",
+          "params": [
+            {
+              "name": "projectId",
+              "description": "The unique identifier for the project."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/projects/{projectId}/demands/{demandId}",
+        "definition": {
+          "entityName": "Demand",
+          "schema": {
+            "$ref": "#/backend/entities/Demand"
+          },
+          "description": "Stores demand data associated with a specific project. Includes denormalized 'members' map for authorization independence (copied from parent Project).",
+          "params": [
+            {
+              "name": "projectId",
+              "description": "The unique identifier for the parent project."
+            },
+            {
+              "name": "demandId",
+              "description": "The unique identifier for the demand."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the MultiFlow Dashboard application, emphasizing security, scalability, and debuggability. The structure prioritizes Authorization Independence by avoiding hierarchical authorization dependencies and using denormalization where necessary. It also focuses on clarity of intent to enable simple and robust security rules.\n\nThe structure includes collections for `projects` and their associated `demands`. Project ownership or membership is not explicitly modeled, implying open access.  To secure projects and demands, a 'members' map could be added to the Project entity. This map would contain user IDs as keys and their roles (e.g., 'owner', 'editor', 'viewer') as values.  The Demand entities could denormalize this `members` map to ensure authorization independence. The security rules would then rely solely on the presence and role of the user within this denormalized map.\n\nSegregation of data is applied by storing projects and demands in separate collections, allowing for more specific security rules if needed in the future. The path structure `/projects/{projectId}/demands/{demandId}` reflects the 1:N relationship and aligns with access modeling principles.\n\nThis design ensures that `list` operations can be secured effectively, as security rules can directly check the denormalized `members` map without relying on `get()` calls to parent documents. This approach enhances security and simplifies debugging.\n\nOverall, the data structure and denormalization strategy allow for secure and efficient data access while adhering to the core design principles of Authorization Independence, Clarity of Intent, and Structural Segregation."
+  }
+}
