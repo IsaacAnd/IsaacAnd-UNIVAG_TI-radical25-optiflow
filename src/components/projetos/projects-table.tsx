@@ -92,6 +92,9 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
               ))
             ) : (
               projects?.map((project) => {
+                if (!project.status) {
+                    return null; // Don't render if status is missing
+                }
                 const deadlineDate = getDateFromProp(project.deadline);
                 return (
                     <TableRow key={project.id}>
@@ -139,5 +142,3 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
     </Card>
   );
 }
-
-    

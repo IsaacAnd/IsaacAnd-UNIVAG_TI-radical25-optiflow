@@ -20,7 +20,7 @@ export default function ProjetosPage() {
   const [teamFilter, setTeamFilter] = React.useState<string[]>([]);
   const [sortBy, setSortBy] = React.useState<string>('');
 
-  const handleAddProject = async (newProjectData: Omit<Project, 'id' | 'status' | 'progress' | 'progressColor' | 'team' | 'deadline'> & {endDate: Date, startDate: Date}) => {
+  const handleAddProject = async (newProjectData: Omit<Project, 'id' | 'status' | 'progress' | 'progressColor' | 'team' | 'deadline' | 'startDate'> & {endDate: Date, startDate: Date}) => {
     const newProject = {
         title: newProjectData.title,
         description: newProjectData.description || '',
@@ -44,7 +44,7 @@ export default function ProjetosPage() {
     let newFilteredProjects = [...projects];
 
     if (statusFilter.length > 0) {
-      newFilteredProjects = newFilteredProjects.filter(p => statusFilter.includes(p.status.label));
+      newFilteredProjects = newFilteredProjects.filter(p => p.status && statusFilter.includes(p.status.label));
     }
     
     if (teamFilter.length > 0) {
@@ -68,6 +68,7 @@ export default function ProjetosPage() {
                 return b.progress - a.progress;
             }
             if (sortBy === 'Status') {
+                if (!a.status || !b.status) return 0;
                 return a.status.label.localeCompare(b.status.label);
             }
             return 0;
@@ -104,5 +105,3 @@ export default function ProjetosPage() {
     </div>
   );
 }
-
-    
