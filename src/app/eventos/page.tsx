@@ -52,19 +52,27 @@ export default function EventosPage() {
   const events: CalendarEvent[] = React.useMemo(() => {
     const demandEvents = demands
       ?.filter(d => d.date)
-      .map(d => ({
-        date: (getDateFromProp(d.date) as Date).toISOString(),
-        title: d.title,
-        color: getEventColor(d.tags),
-      })) || [];
+      .map(d => {
+        const eventDate = getDateFromProp(d.date);
+        return eventDate ? {
+          date: eventDate.toISOString(),
+          title: d.title,
+          color: getEventColor(d.tags),
+        } : null;
+      })
+      .filter((e): e is CalendarEvent => e !== null) || [];
 
     const projectEvents = projects
       ?.filter(p => p.deadline)
-      .map(p => ({
-        date: (getDateFromProp(p.deadline) as Date).toISOString(),
-        title: p.title,
-        color: 'bg-green-100 text-green-800 border-green-500', // Projects are green
-      })) || [];
+      .map(p => {
+         const eventDate = getDateFromProp(p.deadline);
+         return eventDate ? {
+            date: eventDate.toISOString(),
+            title: p.title,
+            color: 'bg-green-100 text-green-800 border-green-500', // Projects are green
+        } : null;
+      })
+      .filter((e): e is CalendarEvent => e !== null) || [];
 
     return [...demandEvents, ...projectEvents];
   }, [demands, projects]);

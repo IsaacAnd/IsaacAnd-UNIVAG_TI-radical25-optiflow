@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Clock, ListTodo } from 'lucide-react';
-import { isAfter, isBefore, addDays, startOfToday, Timestamp } from 'date-fns';
+import { isAfter, isBefore, addDays, startOfToday } from 'date-fns';
+import type { Timestamp } from 'firebase/firestore';
 import type { DemandProps } from '@/components/demandas/demand-card';
 import type { Project } from '@/components/projetos/projects-table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
